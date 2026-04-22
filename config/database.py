@@ -8,7 +8,6 @@ from core import config
 def get_settings():
     return config.Settings()
 
-
 setting = get_settings()
 
 uri = setting.mongo_db
