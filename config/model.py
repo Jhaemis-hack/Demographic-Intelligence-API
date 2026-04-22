@@ -4,10 +4,10 @@ def create_profile(data):
         "name": data["name"],
         "gender": data["gender"],
         "gender_probability": data["gender_probability"],
-        "sample_size": data["sample_size"],
         "age": data["age"],
         "age_group": data["age_group"],
         "country_id": data["country_id"],
+        "country_name": data["country_name"],
         "country_probability": data["country_probability"],
         "created_at": data["created_at"],
     }
@@ -18,9 +18,13 @@ def create_profile_list_item(data):
         "id": data["id"],
         "name": data["name"],
         "gender": data["gender"],
+        "gender_probability": data["gender_probability"],
         "age": data["age"],
         "age_group": data["age_group"],
         "country_id": data["country_id"],
+        "country_name": data["country_name"],
+        "country_probability": data["country_probability"],
+        "created_at": data["created_at"],
     }
 
 
