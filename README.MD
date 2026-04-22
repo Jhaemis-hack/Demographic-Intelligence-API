@@ -1,257 +1,245 @@
-# Gender Analyzer API
+# Classification API
 
-A lightweight, production-ready RESTful API built with FastAPI that analyzes names and predicts gender-related properties using the external `genderize.io` service.
-
----
-
-## 🚀 Overview
-
-This API provides a simple endpoint to classify names and return:
-
-* Gender prediction
-* Probability score
-* Sample size used for prediction
-* Confidence indicator
-* Timestamp of processing
-
-It also includes:
-
-* Rate limiting
-* Custom error handling
-* Input validation
-* CORS configuration
-* Health check endpoint
+A RESTful API built with FastAPI that accepts a name, calls three external APIs (Genderize, Agify, Nationalize) concurrently, classifies the result, stores it in MongoDB, and exposes endpoints to manage the data.
 
 ---
 
-## 🧱 Tech Stack
+## Tech Stack
 
-* Python 3.10+
-* FastAPI
-* SlowAPI (Rate limiting)
-* Uvicorn (ASGI server)
+- Python 3.10+
+- FastAPI
+- MongoDB (Atlas)
+- httpx (async HTTP with HTTP/2)
+- SlowAPI (rate limiting)
+- Uvicorn (ASGI server)
 
 ---
 
-## 📁 Project Structure (Simplified)
+## Project Structure
 
 ```
 .
-├── main.py
+├── main.py                    # App factory and all route handlers
 ├── core/
-│   ├── config.py
-│   ├── exceptions.py
-│   └── error_handlers.py
+│   ├── config.py              # Pydantic settings (loads .env)
+│   ├── exceptions.py          # Custom exception hierarchy
+│   └── error_handlers.py      # Global FastAPI exception handlers
 ├── services/
-│   └── fetch_name_data.py
-└── requirements.txt
+│   ├── genderize_service.py
+│   ├── agify_service.py
+│   ├── nationalize_service.py
+│   └── http_client.py         # Shared async HTTP client
+├── config/
+│   ├── database.py            # MongoDB connection
+│   ├── schema.py              # Pydantic profile model
+│   └── model.py               # Data transformation helpers
+├── requirements.txt
+└── .env
 ```
 
 ---
 
-## ⚙️ Installation
+## Setup
 
 ### 1. Clone the repository
 
-```
+```bash
 git clone <your-repo-url>
 cd <your-project>
 ```
 
 ### 2. Create virtual environment
 
-```
+```bash
 python -m venv venv
-source venv/bin/activate   # Linux/macOS
-venv\\Scripts\\activate    # Windows
+source venv/bin/activate      # Linux/macOS
+venv\Scripts\activate         # Windows
 ```
 
 ### 3. Install dependencies
 
-```
+```bash
 pip install -r requirements.txt
 ```
 
+### 4. Configure environment variables
+
+Create a `.env` file in the project root:
+
+```env
+GENDERIZE_API="https://api.genderize.io"
+AGIFY_API="https://api.agify.io"
+NATIONALIZE_API="https://api.nationalize.io"
+MONGO_DB="<your-mongodb-atlas-connection-string>"
+```
+
 ---
 
-## ▶️ Running the Application
+## Running the Application
 
-Start the development server:
-
-```
+```bash
 uvicorn main:app --reload
 ```
 
-The API will be available at:
-
-```
-http://127.0.0.1:8000
-```
-
-Interactive docs:
-
-```
-http://127.0.0.1:8000/docs
-```
+API base URL: `http://127.0.0.1:8000`  
+Interactive docs: `http://127.0.0.1:8000/docs`
 
 ---
 
-## 📡 API Endpoints
+## API Endpoints
 
-### 1. Home
+### POST /api/profiles — Create profile
 
-```
-GET /
-```
+Accepts a name, fetches demographic data from all three external APIs, and stores the result. If the same name is submitted again, the existing record is returned without calling the external APIs.
 
-Response:
-
+**Request body:**
 ```json
-{
-  "success": true,
-  "message": {
-    "title": "Gender Analyzer",
-    "about": "REST API for analyzing name-based gender"
-  }
-}
+{ "name": "ella" }
 ```
 
----
-
-### 2. Health Check
-
-```
-GET /health
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Ok"
-}
-```
-
----
-
-### 3. Classify Name
-
-```
-GET /api/classify?name=John
-```
-
-#### Query Parameters
-
-| Parameter | Type   | Required | Description     |
-| --------- | ------ | -------- | --------------- |
-| name      | string | Yes      | Name to analyze |
-
-#### Success Response
-
+**Response 201 (new profile):**
 ```json
 {
   "status": "success",
   "data": {
-    "name": "john",
+    "id": "b3f9c1e2-7d4a-4c91-9c2a-1f0a8e5b6d12",
+    "name": "ella",
+    "gender": "female",
+    "gender_probability": 0.99,
+    "sample_size": 1234,
+    "age": 46,
+    "age_group": "adult",
+    "country_id": "US",
+    "country_probability": 0.85,
+    "created_at": "2026-04-01T12:00:00Z"
+  }
+}
+```
+
+**Response 200 (profile already exists):**
+```json
+{
+  "status": "success",
+  "message": "Profile already exists",
+  "data": { "...existing profile..." }
+}
+```
+
+---
+
+### GET /api/profiles — Get all profiles
+
+Optional query parameters (all case-insensitive):
+
+| Parameter  | Example             |
+|------------|---------------------|
+| gender     | `?gender=male`      |
+| country_id | `?country_id=NG`    |
+| age_group  | `?age_group=adult`  |
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "count": 2,
+  "data": [
+    {
+      "id": "id-1",
+      "name": "emmanuel",
+      "gender": "male",
+      "age": 25,
+      "age_group": "adult",
+      "country_id": "NG"
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/profiles/{id} — Get single profile
+
+**Response 200:**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "b3f9c1e2-7d4a-4c91-9c2a-1f0a8e5b6d12",
+    "name": "emmanuel",
     "gender": "male",
-    "probability": 0.99,
-    "sample_size": 12345,
-    "is_confident": true,
-    "processed_at": "2026-01-01T00:00:00Z"
+    "gender_probability": 0.99,
+    "sample_size": 1234,
+    "age": 25,
+    "age_group": "adult",
+    "country_id": "NG",
+    "country_probability": 0.85,
+    "created_at": "2026-04-01T12:00:00Z"
   }
 }
 ```
 
 ---
 
-## ⛔ Error Handling
+### DELETE /api/profiles/{id} — Delete profile
 
-The API uses structured error responses:
+Returns `204 No Content` on success.
 
-| Status Code | Description                         |
-| ----------- | ----------------------------------- |
-| 400         | Bad Request (missing or empty name) |
-| 404         | Name not found                      |
-| 422         | Invalid input                       |
-| 429         | Rate limit exceeded                 |
-| 500         | Internal server error               |
-| 502         | Bad Gateway                         |
+---
 
-Example:
+### GET /health
 
 ```json
-{
-  "Status": "error",
-  "message": "Too many requests, please slow down."
-}
+{ "status": "success", "message": "Ok" }
 ```
 
 ---
 
-## 🚦 Rate Limiting
+## Classification Rules
 
-* Endpoint: `/api/classify`
-* Limit: **8 requests per minute per IP**
+**Age groups (from Agify):**
 
----
+| Range  | Group    |
+|--------|----------|
+| 0–12   | child    |
+| 13–19  | teenager |
+| 20–59  | adult    |
+| 60+    | senior   |
 
-## 🔍 Input Validation Logic
-
-* Removes non-alphabetic characters
-* Converts input to lowercase
-* Rejects empty or invalid strings
-
----
-
-## 🔄 Lifecycle Events
-
-The app uses FastAPI lifespan events:
-
-* Startup: Initializes rate limiter
-* Shutdown: Graceful cleanup logging
+**Nationality:** country with the highest probability from the Nationalize response.
 
 ---
 
-## 🌐 CORS Configuration
+## Error Responses
 
-Currently configured to allow all origins:
+All errors follow this structure:
 
-```python
-allow_origins = ["*"]
+```json
+{ "status": "error", "message": "<error message>" }
 ```
 
-⚠️ For production, restrict this to trusted domains.
+| Status | Trigger |
+|--------|---------|
+| 400    | Missing or empty name |
+| 404    | Profile not found |
+| 422    | Invalid type |
+| 429    | Rate limit exceeded (8 requests/min per IP) |
+| 502    | External API returned an invalid response |
+| 500    | Internal server error |
 
 ---
 
-## 🧪 Example Request
+## CORS
 
-```
-curl "http://127.0.0.1:8000/api/classify?name=Amaka"
-```
+All origins are allowed (`Access-Control-Allow-Origin: *`).
 
 ---
 
-## 🛠️ Future Improvements
+## License
 
-* Add caching layer (Redis)
-* Add authentication (API keys)
-* Improve confidence scoring logic
-* Logging & monitoring (Prometheus/Grafana)
+MIT
 
 ---
 
-## 📄 License
-
-MIT License
-
----
-
-## 👨‍💻 Author
+## Author
 
 James Kehinde
-
----
-
-
