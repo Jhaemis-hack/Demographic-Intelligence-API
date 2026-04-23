@@ -140,7 +140,6 @@ _COUNTRY_NAME_TO_ISO: dict[str, str] = {
     "new zealand": "NZ",
 }
 
-# Age-related stopper words used in the country-extraction regex
 _AGE_STOPPERS = r"above|below|over|under|at\s+least|more\s+than|less\s+than|aged?|who|with"
 
 
@@ -161,7 +160,6 @@ def _parse_nl_query(q: str) -> dict | None:
     query: dict = {}
     recognized = False
 
-    # --- Gender ---
     has_male = bool(re.search(r'\b(males?|men|man|boys?)\b', q_lower))
     has_female = bool(re.search(r'\b(females?|women|woman|girls?)\b', q_lower))
     if has_male and not has_female:
@@ -171,10 +169,8 @@ def _parse_nl_query(q: str) -> dict | None:
         query["gender"] = "female"
         recognized = True
     elif has_male and has_female:
-        # Both genders mentioned → no gender filter but query is still valid
         recognized = True
 
-    # --- Stored age groups (checked before 'young' to avoid conflict) ---
     if re.search(r'\b(children|child|kids?)\b', q_lower):
         query["age_group"] = "child"
         recognized = True
@@ -188,14 +184,12 @@ def _parse_nl_query(q: str) -> dict | None:
         query["age_group"] = "senior"
         recognized = True
 
-    # --- 'young' / 'youth' → age 16-24 (parsing only, not a stored group) ---
     if re.search(r'\b(young|youth)\b', q_lower) and "age_group" not in query:
         query.setdefault("age", {})
         query["age"]["$gte"] = 16
         query["age"]["$lte"] = 24
         recognized = True
 
-    # --- Numeric age constraints ---
     above = re.search(r'\b(?:above|over|older than|at least|more than)\s+(\d+)', q_lower)
     if above:
         query.setdefault("age", {})
@@ -210,14 +204,11 @@ def _parse_nl_query(q: str) -> dict | None:
 
     between = re.search(r'\bbetween\s+(\d+)\s+and\s+(\d+)', q_lower)
     if between:
-        # Overrides any individual above/below age constraints
         query["age"] = {"$gte": int(between.group(1)), "$lte": int(between.group(2))}
         recognized = True
 
-    # --- Country ---
     country_text = _extract_country(q_lower)
     if country_text:
-        # Try longest dictionary match first to handle multi-word names
         iso = None
         for name in sorted(_COUNTRY_NAME_TO_ISO, key=len, reverse=True):
             if country_text == name or country_text.startswith(name):
@@ -226,16 +217,11 @@ def _parse_nl_query(q: str) -> dict | None:
         if iso:
             query["country_id"] = iso
         else:
-            # Fall back to case-insensitive regex on the stored country_name field
             query["country_name"] = {"$regex": re.escape(country_text), "$options": "i"}
         recognized = True
 
     return query if recognized else None
 
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 
 @app.get("/")
 async def home():
@@ -258,7 +244,6 @@ async def favicon():
     return Response(status_code=204)
 
 
-# Search must be declared before /api/profiles to avoid route shadowing
 @app.get("/api/profiles/search")
 async def search_profiles(
     request: Request,
@@ -319,7 +304,6 @@ async def fetch_profiles(
     if country_id:
         query["country_id"] = country_id.upper()
 
-    # Build age range without letting min_age/max_age overwrite each other
     age_filter: dict = {}
     if min_age is not None:
         age_filter["$gte"] = min_age
@@ -336,7 +320,7 @@ async def fetch_profiles(
     sort_field = (sort_by or "created_at").lower()
     sort_dir = pymongo.DESCENDING if (order or "").lower() == "desc" else pymongo.ASCENDING
     sort_spec = [(sort_field, sort_dir)]
-    # Secondary sort by created_at when a different primary field is chosen
+    
     if sort_field != "created_at":
         sort_spec.append(("created_at", pymongo.DESCENDING))
 
