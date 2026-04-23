@@ -107,8 +107,8 @@ async def fetch_profiles(request: Request,
         "order": order.lower() if order else "",
     }
 
-    total_docs = list(collection.find(query).sort([ sort["sort_by"], ("created_at", pymongo.DESCENDING if sort["order"] == "desc" else pymongo.DESCENDING)]))
-    docs = list(collection.find(query).sort([ sort["sort_by"], ("created_at", pymongo.DESCENDING if sort["order"] == "desc" else pymongo.DESCENDING)]).limit(limit=limit).skip(skip=(page * (limit) - limit)))
+    total_docs = list(collection.find(query).sort([ sort["sort_by"] or "age", ("created_at", pymongo.DESCENDING if sort["order"] == "desc" else pymongo.ASCENDING)]))
+    docs = list(collection.find(query).sort([ sort["sort_by"] or "age", ("created_at", pymongo.DESCENDING if sort["order"] == "desc" else pymongo.DESCENDING)]).skip(skip=((page * limit) - limit)).limit(limit=limit))
         
     return JSONResponse(content={
         "status": "success",
@@ -118,7 +118,6 @@ async def fetch_profiles(request: Request,
         "data": [create_profile_list_item(d) for d in docs],
     }, status_code=200)
     
-
 
 @app.get("/api/profiles/search")
 async def natural_language_query(
